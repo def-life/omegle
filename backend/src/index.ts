@@ -27,27 +27,8 @@ const wss = new WebSocket.Server({ server: httpServer, path: "/webrtc" });
 
 const engine = Engine.getInstance();
 
-// let room: WebSocket[] = [];
-// const roomId = "default-room"; // This can be dynamic based on your requirements
 wss.on("connection", (ws) => {
     logger.info("New client connected");
-    // if(room.length >= 2) {
-    //     room = []
-    // }
-    // room.push(ws);
-    // if(room.length === 2) {
-    //     room.forEach((client) => {
-    //         if(client.readyState === WebSocket.OPEN) {
-    //             client.send(JSON.stringify({
-    //                 event: "room_created",
-    //                 roomId: roomId,
-    //             }));
-    //         }
-    //     });
-    //     logger.info("Room created with 2 clients", {roomId});
-    // }
-    // logger.info("client connected", {length: room.length});
-
     engine.match(ws)
     ws.on("message", (message) => {
         const payload = JSON.parse(message.toString());
@@ -55,17 +36,6 @@ wss.on("connection", (ws) => {
         const {event, roomId, ...rest} = payload as {event: string, description?: string, candidate?: string, roomId: WEBRTCData};
 
         if(event === WEBRTC_SIGNAL) {
-            // proxy the signal to other clients in the room
-            // room.forEach((client) => {
-            //     if(client !== ws && client.readyState === WebSocket.OPEN) {
-            //         logger.info("Sending signal to other client:");
-            //         client.send(JSON.stringify({
-            //             event: WEBRTC_SIGNAL,
-            //             ...rest
-            //         }));
-            //     }
-            // })
-
             engine.signal(ws, payload)
 
         } else {
@@ -86,20 +56,3 @@ wss.on("connection", (ws) => {
         }
     })
 })
-
-// TODO: on connectin close event, delete room
-/**
- * 
- * 
- * user.on("close", () => {
-                // Clean up on disconnect
-                this.users.forEach(u => {
-                    if (u !== user && u.readyState === WebSocket.OPEN) {
-                        u.send(JSON.stringify({ event: "peer_disconnected" }));
-                        u.close(); // Optionally close peer's connection too
-                    }
-                });
-                RoomsManager.getInstance().deleteRoom(this.id);
-            });
-        });
- */

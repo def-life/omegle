@@ -12,8 +12,34 @@ export default function App() {
   const [roomId, setRoomId] = useState("");
   const [isPolite, setIsPolite] = useState(false);
   const makingOfferRef = useRef(false);
-  // const cameraAddedRef = useRef(false);
   const [cameraAdded, setCameraAdded] = useState(false)
+  const [enableAudio, setEnableAudio] = useState(true);
+  const [showVideo, setShowVideo] = useState(true);
+  const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const [messages, setMessages] = useState<{ message: string, sender: "you" | "other" }[]>([]) // keep last 40 messages;
+  const typedAreaRef = useRef<HTMLTextAreaElement | null>(null);
+
+
+  // TODO: apply useMemo here
+  async function handleMic() {
+    if (localView.current && localView.current.srcObject instanceof MediaStream) {
+      const audioTracks = localView.current.srcObject.getAudioTracks();
+      for (let track of audioTracks) {
+        track.enabled = !enableAudio;
+      }
+      setEnableAudio(!enableAudio);
+    }
+  }
+
+  async function handleCamera() {
+    if (localView.current && localView.current.srcObject instanceof MediaStream) {
+      const videoTracks = localView.current.srcObject.getVideoTracks();
+      for (let track of videoTracks) {
+        track.enabled = !showVideo;
+      }
+      setShowVideo(!showVideo)
+    }
+  }
 
   async function addCameraMic() {
     if (!pc.current || !localView.current) {
@@ -69,7 +95,6 @@ export default function App() {
 
         const { description, candidate } = data;
         if (description) {
-          console.log("description", description.type, description)
           if (description.type === "offer") {
 
             const isOfferCollision = makingOfferRef.current || (pc.current.signalingState !== "stable");
@@ -96,7 +121,6 @@ export default function App() {
           }
         }
         if (candidate) {
-          console.log("going to add candidate", candidate);
           try {
             pc.current.addIceCandidate(new RTCIceCandidate(candidate));
 
@@ -120,6 +144,8 @@ export default function App() {
     return () => {
       peerConnection.close();
       pc.current = null;
+      dataChannelRef.current = null;
+      setMessages([])
     }
 
   }, [roomId]);
@@ -140,6 +166,27 @@ export default function App() {
         }));
       }
     };
+
+    peerConnection.ondatachannel = (event) => {
+      const channel = event.channel;
+
+      channel.onopen = () => {
+        console.log("Data Channel open");
+      };
+
+      channel.onmessage = (event) => {
+        setMessages((messages) => {
+          return [...messages, { message: event.data, sender: "other" }]
+        })
+      };
+
+      channel.onclose = () => {
+        console.log("data channel closed");
+      };
+
+      // You can store it in another ref if you want to send messages
+      dataChannelRef.current = channel;
+    }
 
     peerConnection.onnegotiationneeded = async () => {
       if (!pc.current || !wsRef.current) {
@@ -195,6 +242,27 @@ export default function App() {
       return;
     }
 
+    if (!dataChannelRef.current) {
+      const dataChannel = pc.current.createDataChannel("chat");
+      dataChannelRef.current = dataChannel;
+
+      dataChannel.onopen = () => {
+        console.log("channel open")
+      }
+
+      dataChannel.onclose = () => {
+        console.log('channel close')
+      }
+
+      // create a single messageHandler
+      dataChannel.onmessage = (event) => {
+        console.log("received message", event.data)
+        setMessages((messages) => {
+          return [...messages, { message: event.data, sender: "other" }]
+        })
+      }
+    }
+
     const socket = wsRef.current;
 
     const offer = await pc.current.createOffer();
@@ -216,6 +284,20 @@ export default function App() {
 
   }
 
+  function sendMessage() {
+    if (!typedAreaRef.current || !dataChannelRef.current) return;
+    const message = typedAreaRef.current.value;
+
+    if (message) {
+      setMessages((messages) => {
+        return [...messages, { message, sender: "you" }]
+      })
+      dataChannelRef.current.send(message)
+    }
+
+    typedAreaRef.current.value = "";
+  }
+
   return (
     <div className="App">
       {!roomId && <h3>Waiting for room to be created...</h3>}
@@ -223,6 +305,24 @@ export default function App() {
       <video style={{ width: 300, height: 300, background: 'black', margin: 5 }} ref={localView} autoPlay playsInline muted></video>
       <video style={{ width: 300, height: 300, background: 'black', margin: 5 }} ref={remoteView} autoPlay playsInline></video>
       <br />
+      <button onClick={handleMic}>{enableAudio ? "mute" : "unmute"}</button>
+      <button onClick={handleCamera}>{showVideo ? "hide video" : "show video"}</button>
+      <br />
+      <textarea
+        ref={typedAreaRef}
+        rows={5}
+        cols={40}
+        placeholder="Type something..."
+      />     
+      <br /> 
+      
+      <button onClick={sendMessage}>send message</button>
+      <div>
+        {messages.map(({ sender, message }) => {
+          return <div ><span>{sender}: </span><span>{message}</span></div>
+        })}
+      </div>
+
     </div>
   );
 }

@@ -9,7 +9,7 @@ export const vars = {
         ]
     },
     MEDIA_CONSTRAINTS: {
-        audio: false,
+        audio: true,
         video: true
     },
 

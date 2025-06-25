@@ -69,7 +69,6 @@ export class Engine {
     
     private setUpWebSocket(ws: WebSocket): void {
         ws.on("close", () => {
-            logger.info("Client disconnected, removing from queue");
             this.queue = this.queue.filter((client) => client !== ws);
 
             const roomId = this.wsToRoomId.get(ws);
@@ -100,7 +99,6 @@ export class Engine {
 
     match(ws: WebSocket): Room | undefined {
         this.setUpWebSocket(ws);
-        logger.info("Client connected, adding to queue", { queueLength: this.queue.length });
         this.queue.push(ws);
         if (this.queue.length >= 2) {
             const [user1, user2] = this.queue.splice(0, 2);
