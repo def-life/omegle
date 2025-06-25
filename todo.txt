@@ -1,0 +1,4 @@
+// things to do
+// an ec2 instance with nginx server to deploy the backend and to serve pages to client.
+// buy a new domain from route 53.
+// find a free TURN server.
